@@ -1,0 +1,7 @@
+{
+  "name": "NAYRA AI",
+  "description": "Futuristic holographic anime AI assistant with 3D character, male voice, and Hindi/English conversations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

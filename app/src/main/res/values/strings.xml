@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">NAYRA AI</string>
+    <string name="ai_status_idle">IDLE - SYSTEM READY</string>
+    <string name="ai_status_listening">LISTENING…</string>
+    <string name="ai_status_thinking">PROCESSING QUERY…</string>
+    <string name="ai_status_speaking">SPEAKING…</string>
+    <string name="mic_permission_required">Microphone access is required for voice recognition</string>
+    <string name="speech_recognition_error">Speech recognition failed or was cancelled</string>
+</resources>
