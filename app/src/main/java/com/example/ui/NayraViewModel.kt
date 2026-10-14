@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.GeminiRepository
 import com.example.ui.character.AiVisualState
 import com.example.voice.VoiceManager
+import com.example.voice.ElevenLabsVoice
 import com.example.voice.VoiceOption
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,6 +36,7 @@ class NayraViewModel(application: Application) : AndroidViewModel(application) {
 
     val geminiRepository = GeminiRepository()
     val voiceManager = VoiceManager(application.applicationContext, viewModelScope)
+    val elevenLabsVoice = ElevenLabsVoice(application.applicationContext)
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(
         listOf(
@@ -121,8 +123,13 @@ class NayraViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     _messages.value = _messages.value + nayraMsg
 
-                    // Read response aloud in male voice
-                    voiceManager.speak(replyText)
+                    // Prefer ElevenLabs; fall back to Android TTS if key/quota/network fails.
+                    if (elevenLabsVoice.apiKey.isNotBlank()) {
+                        viewModelScope.launch {
+                            val spoken = elevenLabsVoice.speak(replyText)
+                            if (spoken.isFailure) voiceManager.speak(replyText)
+                        }
+                    } else voiceManager.speak(replyText)
                 },
                 onFailure = { error ->
                     val errorDesc = error.message ?: "Failed to reach NAYRA core."
@@ -156,7 +163,9 @@ class NayraViewModel(application: Application) : AndroidViewModel(application) {
 
     fun replayMessage(message: ChatMessage) {
         if (message.sender == MessageSender.NAYRA) {
-            voiceManager.speak(message.text)
+            if (elevenLabsVoice.apiKey.isNotBlank()) viewModelScope.launch {
+                if (elevenLabsVoice.speak(message.text).isFailure) voiceManager.speak(message.text)
+            } else voiceManager.speak(message.text)
         }
     }
 
@@ -205,6 +214,7 @@ class NayraViewModel(application: Application) : AndroidViewModel(application) {
             )
         )
         voiceManager.stopSpeaking()
+        elevenLabsVoice.stop()
     }
 
     fun setCustomApiKey(key: String) {

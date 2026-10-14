@@ -99,17 +99,14 @@ class GeminiRepository {
                 .build()
 
             val response = okHttpClient.newCall(request).execute()
-            val responseCode = response.code
-            val responseMessage = response.message
-            val isSuccessful = response.isSuccessful
-            val responseBody = response.use { it.body?.string() }
+            val responseBody = response.body?.string()
 
-            if (!isSuccessful || responseBody == null) {
+            if (!response.isSuccessful || responseBody == null) {
                 val errorMsg = try {
                     val parsedErr = responseBody?.let { responseAdapter.fromJson(it) }
-                    parsedErr?.error?.message ?: "HTTP $responseCode: $responseMessage"
+                    parsedErr?.error?.message ?: "HTTP ${response.code}: ${response.message}"
                 } catch (_: Exception) {
-                    "HTTP $responseCode: $responseMessage"
+                    "HTTP ${response.code}: ${response.message}"
                 }
                 // Roll back last user prompt from history on failure
                 if (conversationHistory.isNotEmpty()) {
@@ -119,14 +116,8 @@ class GeminiRepository {
             }
 
             val parsedResponse = responseAdapter.fromJson(responseBody)
-            val text = parsedResponse?.candidates?.firstOrNull()?.content?.parts
-                ?.mapNotNull { it.text }
-                ?.joinToString("\n")
-                ?.takeIf { it.isNotBlank() }
-            if (text == null) {
-                if (conversationHistory.isNotEmpty()) conversationHistory.removeAt(conversationHistory.lastIndex)
-                return@withContext Result.failure(Exception("NAYRA received no text response. Check the API key, model access, and network connection."))
-            }
+            val text = parsedResponse?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                ?: return@withContext Result.failure(Exception("No response generated from NAYRA brain."))
 
             // Add model response to history
             conversationHistory.add(

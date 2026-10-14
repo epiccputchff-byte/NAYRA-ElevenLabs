@@ -43,6 +43,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,6 +85,10 @@ fun SettingsDialog(
     currentLanguage: String,
     useAvatarMode: Boolean,
     customApiKey: String?,
+    elevenLabsApiKey: String,
+    onSaveElevenLabsKey: (String) -> Unit,
+    onTestElevenLabsKey: suspend (String) -> Result<String>,
+    onDisconnectElevenLabs: () -> Unit,
     onVoiceSelected: (String) -> Unit,
     onPitchChanged: (Float) -> Unit,
     onSpeedChanged: (Float) -> Unit,
@@ -95,6 +101,10 @@ fun SettingsDialog(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var apiKeyInput by remember { mutableStateOf(customApiKey ?: "") }
     var isApiKeyVisible by remember { mutableStateOf(false) }
+    var elevenKeyInput by remember { mutableStateOf(elevenLabsApiKey) }
+    var elevenStatus by remember { mutableStateOf("") }
+    var testingEleven by remember { mutableStateOf(false) }
+    val settingsScope = rememberCoroutineScope()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -397,6 +407,59 @@ fun SettingsDialog(
             )
 
             Spacer(modifier = Modifier.height(20.dp))
+
+            // ElevenLabs natural voice connection
+            SettingsSectionHeader(icon = Icons.Default.RecordVoiceOver, title = "ELEVENLABS NATURAL VOICE")
+            Text(
+                text = "Apni ElevenLabs API key connect karo. Hindi/Hinglish ke liye multilingual voice use hoti hai. Default voice ID ko apni ElevenLabs Voice ID se replace kar sakte ho in code/settings later.",
+                color = TextHoloMuted, fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+            OutlinedTextField(
+                value = elevenKeyInput,
+                onValueChange = { elevenKeyInput = it },
+                placeholder = { Text("ElevenLabs API key", color = TextHoloMuted, fontSize = 12.sp) },
+                visualTransformation = if (isApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { isApiKeyVisible = !isApiKeyVisible }) {
+                        Icon(imageVector = if (isApiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = "Toggle ElevenLabs key visibility", tint = TextHoloSecondary)
+                    }
+                },
+                colors = TextFieldDefaults.colors(
+                    focusedTextColor = TextHoloPrimary, unfocusedTextColor = TextHoloPrimary,
+                    focusedContainerColor = CyberSurface, unfocusedContainerColor = CyberSurface,
+                    focusedIndicatorColor = HoloCyan, unfocusedIndicatorColor = CyberSurfaceBorder
+                ), modifier = Modifier.fillMaxWidth().testTag("elevenlabs_api_key_input")
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    onSaveElevenLabsKey(elevenKeyInput)
+                    elevenStatus = "Key saved on this device. Testing..."
+                    testingEleven = true
+                    settingsScope.launch {
+                        val result = onTestElevenLabsKey(elevenKeyInput)
+                        elevenStatus = result.fold({ it }, { "Connection failed: ${it.message ?: "Check key and internet."}" })
+                        testingEleven = false
+                    }
+                }, enabled = !testingEleven && elevenKeyInput.isNotBlank(), modifier = Modifier.weight(1f)) {
+                    Text(if (testingEleven) "TESTING..." else "CONNECT / TEST", fontSize = 11.sp)
+                }
+                OutlinedButton(onClick = {
+                    elevenKeyInput = ""
+                    onDisconnectElevenLabs()
+                    elevenStatus = "ElevenLabs disconnected. Android voice will be used."
+                }, modifier = Modifier.weight(1f)) { Text("DISCONNECT", fontSize = 11.sp) }
+            }
+            if (elevenStatus.isNotBlank()) {
+                Text(elevenStatus, color = if (elevenStatus.contains("successfully")) HoloTeal else HoloPink,
+                    fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+            }
+            Text("Security note: the key is saved in this app's private preferences, not encrypted by this version. Don't share this APK or your key.",
+                color = TextHoloMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Section 5: Reset Session
             OutlinedButton(
